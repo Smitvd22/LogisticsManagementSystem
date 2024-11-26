@@ -66,8 +66,9 @@ public class AdminPanel extends JPanel {
     private JPanel contentPanel;
     private CardLayout cardLayout;
     private DashboardPanel dashboardPanel;
-    private RegistryPanel registryPanel;
-    private Orders driverAssignmentPanel;
+    private newOrdersAdmin newOrders;
+    private currentOrdersAdmin currentOrders;
+    private completedOrdersAdmin completedOrders;
     
     public AdminPanel(User user) {
         this.currentUser = user;
@@ -91,15 +92,25 @@ public class AdminPanel extends JPanel {
         contentPanel = new JPanel(cardLayout);
         contentPanel.setBackground(BACKGROUND_COLOR);
         
+        JLabel timeLabel = new JLabel();
+        timeLabel.setForeground(TEXT_COLOR);
+        timeLabel.setFont(new Font("Arial", Font.BOLD, 36));
+        
+        JLabel dateLabel = new JLabel();
+        dateLabel.setForeground(TEXT_COLOR);
+        dateLabel.setFont(new Font("Arial", Font.PLAIN, 16));
+        
         // Initialize panels
         dashboardPanel = new DashboardPanel(currentUser);
-        registryPanel = new RegistryPanel(currentUser); // Placeholder for Registry
-        driverAssignmentPanel = new Orders(currentUser); // Placeholder for Driver Assignment
+        newOrders = new newOrdersAdmin(currentUser);
+        currentOrders = new currentOrdersAdmin(currentUser);
+        completedOrders = new completedOrdersAdmin(currentUser);
         
         // Add panels to card layout
         contentPanel.add(dashboardPanel, "Dashboard");
-        contentPanel.add(registryPanel, "Users");
-        contentPanel.add(driverAssignmentPanel, "Orders");
+        contentPanel.add(newOrders, "New Orders");
+        contentPanel.add(currentOrders, "Current Orders");
+        contentPanel.add(completedOrders, "Completed Orders");
         
         mainContainer.add(contentPanel, BorderLayout.CENTER);
         add(mainContainer);
@@ -128,7 +139,7 @@ public class AdminPanel extends JPanel {
 //        logo.setIcon(logoIcon);
         
         // Navigation buttons
-        String[] menuItems = {"Dashboard", "Users", "Orders"};
+        String[] menuItems = {"Dashboard", "New Orders", "Current Orders", "Completed Orders"};
         for (String item : menuItems) {
             JButton menuButton = createMenuButton(item);
             sidebar.add(menuButton);
@@ -138,6 +149,7 @@ public class AdminPanel extends JPanel {
         // Logout button at bottom
         sidebar.add(Box.createVerticalGlue());
         JButton logoutButton = createMenuButton("Logout");
+        logoutButton.setBackground(new Color(138, 43, 226));
         logoutButton.addActionListener(e -> handleLogout());
         sidebar.add(logoutButton);
         
@@ -222,6 +234,16 @@ class DashboardPanel extends JPanel {
 
     public DashboardPanel(User user) {
         this.currentUser = user;
+        
+        // Initialize timeLabel and dateLabel before calling initializeComponents
+        timeLabel = new JLabel();
+        timeLabel.setForeground(TEXT_COLOR);
+        timeLabel.setFont(new Font("Arial", Font.BOLD, 36));
+        
+        dateLabel = new JLabel();
+        dateLabel.setForeground(TEXT_COLOR);
+        dateLabel.setFont(new Font("Arial", Font.PLAIN, 16));
+
         setLayout(new BorderLayout(15, 15));
         setBackground(BACKGROUND_COLOR);
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
@@ -391,29 +413,33 @@ class DashboardPanel extends JPanel {
     }
 
     private JPanel createTimeWidget() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBackground(CARD_BACKGROUND);
-        panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+        JPanel containerPanel = new JPanel(new BorderLayout());
+        containerPanel.setBackground(CARD_BACKGROUND);
+        containerPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridwidth = GridBagConstraints.REMAINDER;
-        gbc.anchor = GridBagConstraints.WEST;
-        gbc.insets = new Insets(5, 0, 5, 0);
+        // Create a panel for time and date labels
+        JPanel timeDisplayPanel = new JPanel();
+        timeDisplayPanel.setBackground(CARD_BACKGROUND);
+        timeDisplayPanel.setLayout(new BoxLayout(timeDisplayPanel, BoxLayout.Y_AXIS));
+        timeDisplayPanel.add(timeLabel);
+        timeDisplayPanel.add(dateLabel);
+
+        // Update initial time and date
+        updateTimeAndDate();
         
-        timeLabel = new JLabel();
-        timeLabel.setFont(new Font("Arial", Font.BOLD, 32));
-        timeLabel.setForeground(Color.WHITE);
-        panel.add(timeLabel, gbc);
+        StatsWheel statsWheel = new StatsWheel();
+        containerPanel.add(timeDisplayPanel, BorderLayout.NORTH);
+        containerPanel.add(statsWheel, BorderLayout.CENTER);
         
-        dateLabel = new JLabel();
-        dateLabel.setForeground(TEXT_COLOR);
-        panel.add(dateLabel, gbc);
+        // Add this to ensure proper cleanup when the admin panel is closed
+        addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentHidden(java.awt.event.ComponentEvent evt) {
+                statsWheel.stopTimer();
+            }
+        });
         
-        temperatureLabel = new JLabel("23°C");
-        temperatureLabel.setForeground(TEXT_COLOR);
-        panel.add(temperatureLabel, gbc);
-        
-        return panel;
+        return containerPanel;
     }
 
     private void updateWarehouseCapacity() {
@@ -439,9 +465,10 @@ class DashboardPanel extends JPanel {
 
     private void updateRevenueChart() {
         try (Connection conn = DatabaseConnection.getConnection()) {
+            // Modified query to comply with ONLY_FULL_GROUP_BY mode
             String query = """
                 SELECT 
-                    DATE_FORMAT(generated_at, '%b') as month,
+                    DATE_FORMAT(MIN(generated_at), '%b') as month,
                     SUM(total_amount) as revenue
                 FROM bills 
                 WHERE 
@@ -451,7 +478,7 @@ class DashboardPanel extends JPanel {
                     YEAR(generated_at), 
                     MONTH(generated_at)
                 ORDER BY 
-                    generated_at DESC
+                    MIN(generated_at) DESC
                 LIMIT 12
                 """;
             
@@ -483,9 +510,10 @@ class DashboardPanel extends JPanel {
 
     private void updateDeliveryStatsChart() {
         try (Connection conn = DatabaseConnection.getConnection()) {
+            // Modified query to comply with ONLY_FULL_GROUP_BY mode
             String query = """
                 SELECT 
-                    DATE_FORMAT(completed_at, '%b %d') as date,
+                    DATE_FORMAT(MIN(completed_at), '%b %d') as date,
                     COUNT(*) as completed_deliveries
                 FROM delivery_assignments
                 WHERE 
@@ -494,7 +522,7 @@ class DashboardPanel extends JPanel {
                 GROUP BY 
                     DATE(completed_at)
                 ORDER BY 
-                    completed_at ASC
+                    MIN(completed_at) ASC
                 """;
             
             DefaultCategoryDataset dataset = new DefaultCategoryDataset();

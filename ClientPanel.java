@@ -1,28 +1,41 @@
 package LogisticsManagementSystem;
 
-import javax.swing.*;
-import java.awt.*;
 import java.awt.BorderLayout;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
+import java.awt.CardLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.Window;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.sql.SQLException;
 
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
-import javax.swing.JCheckBox;
 import javax.swing.JFrame;
-import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JSpinner;
-import javax.swing.JTabbedPane;
-import javax.swing.JTextField;
-import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 
 public class ClientPanel extends JPanel {
+    private static final Color BACKGROUND_COLOR = new Color(13, 17, 23);
+    private static final Color SIDEBAR_COLOR = new Color(22, 27, 34);
+    private static final Color TEXT_COLOR = new Color(201, 209, 217);
+    private static final Color ACCENT_COLOR = new Color(136, 46, 224);
+    private static final Color HOVER_COLOR = new Color(48, 54, 61);
+    
     private User currentUser;
+    private JPanel contentPanel;
+    private CardLayout cardLayout;
+    private NewOrderPanel newOrderPanel;
+    private TrackOrderPanel trackOrdersPanel;
+    private OrderHistoryPanel orderHistoryPanel;
     private ClientPortal clientPortal;
-
+    
     public ClientPanel(User user) {
         this.currentUser = user;
         try {
@@ -31,120 +44,110 @@ public class ClientPanel extends JPanel {
             e.printStackTrace();
             JOptionPane.showMessageDialog(this, "Database connection error");
         }
-
         setLayout(new BorderLayout());
+        setBackground(BACKGROUND_COLOR);
+        
         initializeComponents();
     }
-
+    
     private void initializeComponents() {
-        // Create tabbed pane for different client functionalities
-        JTabbedPane tabbedPane = new JTabbedPane();
-
-        // Add Order Panel
-        tabbedPane.addTab("New Order", createOrderPanel());
-
-        // Add Order Tracking Panel
-        tabbedPane.addTab("Track Orders", createTrackingPanel());
-
-        // Add Order History Panel
-        tabbedPane.addTab("Order History", createHistoryPanel());
-
-        add(tabbedPane, BorderLayout.CENTER);
+        // Create main container
+        JPanel mainContainer = new JPanel(new BorderLayout());
+        mainContainer.setBackground(BACKGROUND_COLOR);
+        
+        // Create sidebar
+        JPanel sidebar = createSidebar();
+        mainContainer.add(sidebar, BorderLayout.WEST);
+        
+        // Create content panel with CardLayout
+        cardLayout = new CardLayout();
+        contentPanel = new JPanel(cardLayout);
+        contentPanel.setBackground(BACKGROUND_COLOR);
+        
+        // Initialize panels
+        newOrderPanel = new NewOrderPanel(currentUser, clientPortal);
+        trackOrdersPanel = new TrackOrderPanel(currentUser);
+        orderHistoryPanel = new OrderHistoryPanel(currentUser);
+        
+        // Add panels to card layout
+        contentPanel.add(newOrderPanel, "New Order");
+        contentPanel.add(trackOrdersPanel, "Track Orders");
+        contentPanel.add(orderHistoryPanel, "Order History");
+        
+        mainContainer.add(contentPanel, BorderLayout.CENTER);
+        add(mainContainer);
+        
+        // Show new order panel by default
+        cardLayout.show(contentPanel, "New Order");
     }
-
-    private JPanel createOrderPanel() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-
-        // Add order form components
-        JTextField pickupLocation = new JTextField(20);
-        JTextField deliveryLocation = new JTextField(20);
-        JTextField itemType = new JTextField(20);
-        JSpinner quantity = new JSpinner(new SpinnerNumberModel(1, 1, 1000, 1));
-        JCheckBox vipService = new JCheckBox("VIP Service");
-
-        // Add components to panel
-        gbc.gridx = 0; gbc.gridy = 0;
-        panel.add(new JLabel("Pickup Location:"), gbc);
-        gbc.gridx = 1;
-        panel.add(pickupLocation, gbc);
-
-        gbc.gridx = 0; gbc.gridy = 1;
-        panel.add(new JLabel("Delivery Location:"), gbc);
-        gbc.gridx = 1;
-        panel.add(deliveryLocation, gbc);
-
-        gbc.gridx = 0; gbc.gridy = 2;
-        panel.add(new JLabel("Item Type:"), gbc);
-        gbc.gridx = 1;
-        panel.add(itemType, gbc);
-
-        gbc.gridx = 0; gbc.gridy = 3;
-        panel.add(new JLabel("Quantity:"), gbc);
-        gbc.gridx = 1;
-        panel.add(quantity, gbc);
-
-        gbc.gridx = 0; gbc.gridy = 4;
-        gbc.gridwidth = 2;
-        panel.add(vipService, gbc);
-
-        JButton submitButton = new JButton("Place Order");
-        submitButton.addActionListener(e -> {
-            int orderId = clientPortal.createOrder(
-                currentUser.getUserId(),
-                pickupLocation.getText(),
-                deliveryLocation.getText(),
-                itemType.getText(),
-                (Double) quantity.getValue(),
-                vipService.isSelected()
-            );
-
-            if (orderId != -1) {
-                JOptionPane.showMessageDialog(this, "Order placed successfully! Order ID: " + orderId);
-            } else {
-                JOptionPane.showMessageDialog(this, "Failed to place order");
+    
+    private JPanel createSidebar() {
+        JPanel sidebar = new JPanel();
+        sidebar.setPreferredSize(new Dimension(250, getHeight()));
+        sidebar.setBackground(SIDEBAR_COLOR);
+        sidebar.setLayout(new BoxLayout(sidebar, BoxLayout.Y_AXIS));
+        sidebar.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        // Navigation buttons
+        String[] menuItems = {"New Order", "Track Orders", "Order History"};
+        for (String item : menuItems) {
+            JButton menuButton = createMenuButton(item);
+            sidebar.add(menuButton);
+            sidebar.add(Box.createVerticalStrut(10));
+        }
+        
+        // Logout button at bottom
+        sidebar.add(Box.createVerticalGlue());
+        JButton logoutButton = createMenuButton("Logout");
+        logoutButton.addActionListener(e -> handleLogout());
+        sidebar.add(logoutButton);
+        
+        return sidebar;
+    }
+    
+    private JButton createMenuButton(String text) {
+        JButton button = new JButton(text);
+        button.setAlignmentX(Component.LEFT_ALIGNMENT);
+        button.setMaximumSize(new Dimension(210, 40));
+        button.setBackground(SIDEBAR_COLOR);
+        button.setForeground(TEXT_COLOR);
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setFont(new Font("Arial", Font.PLAIN, 14));
+        
+        // Add hover effect
+        button.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                button.setBackground(HOVER_COLOR);
+            }
+            
+            @Override
+            public void mouseExited(MouseEvent e) {
+                button.setBackground(SIDEBAR_COLOR);
             }
         });
-
-        gbc.gridy = 5;
-        panel.add(submitButton, gbc);
-
-        return panel;
+        
+        // Add action listener for navigation
+        button.addActionListener(e -> {
+            if (!text.equals("Logout")) {
+                cardLayout.show(contentPanel, text);
+            }
+        });
+        
+        return button;
     }
-
-    private JPanel createTrackingPanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-        JLabel label = new JLabel("Order Tracking Feature Coming Soon!", JLabel.CENTER);
-        panel.add(label, BorderLayout.CENTER);
-        return panel;
+    
+    private void handleLogout() {
+        Window window = SwingUtilities.getWindowAncestor(this);
+        if (window instanceof JFrame) {
+            JFrame frame = (JFrame) window;
+            frame.getContentPane().removeAll();
+            
+            LoginPanel loginPanel = new LoginPanel();
+            frame.getContentPane().add(loginPanel);
+            frame.revalidate();
+            frame.repaint();
+        }
     }
-
-    private JPanel createHistoryPanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-        JLabel label = new JLabel("Order History Feature Coming Soon!", JLabel.CENTER);
-        panel.add(label, BorderLayout.CENTER);
-        return panel;
-    }
-
-    public static void main(String[] args) {
-        // Create a dummy user for demonstration purposes
-        User dummyUser = new User(1, "1", "client", "a", "1");
-
-        // Set up the JFrame
-        JFrame frame = new JFrame("Client Portal");
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(800, 600);
-        frame.setLocationRelativeTo(null); // Center the frame on the screen
-
-        // Initialize the ClientPanel with the dummy user
-        ClientPanel clientPanel = new ClientPanel(dummyUser);
-
-        // Add the ClientPanel to the frame
-        frame.add(clientPanel, BorderLayout.CENTER);
-
-        // Make the frame visible
-        frame.setVisible(true);
-    }
-
 }

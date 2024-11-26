@@ -45,12 +45,16 @@ public class DriverPanel extends JPanel {
     private Set<String> generatedOTPs = new HashSet<>();
     
     // Constants for UI
-    private static final Color BACKGROUND_COLOR = Color.BLACK;
-    private static final Color SIDEBAR_COLOR = new Color(21, 25, 30);
-    private static final Color TEXT_COLOR = Color.WHITE;
+    private static final Color BACKGROUND_COLOR = new Color(13, 17, 23);
+    private static final Color SIDEBAR_COLOR = new Color(22, 27, 34);
+    private static final Color TEXT_COLOR = new Color(201, 209, 217);
     private static final Color ACCENT_COLOR = new Color(45, 49, 54);
     private static final Font MAIN_FONT = new Font("Arial", Font.PLAIN, 14);
     private static final Font HEADER_FONT = new Font("Arial", Font.BOLD, 16);
+    private static final Color BUTTON_BACKGROUND_COLOR = new Color(138, 43, 226); // Purple
+    private static final Color BUTTON_TEXT_COLOR = Color.WHITE; // White
+    
+
     private static final String[] HISTORY_COLUMNS = {
         "Order ID", "Pickup Location", "Drop Location", 
         "Started At", "Completed At", "Status"
@@ -63,6 +67,16 @@ public class DriverPanel extends JPanel {
         setupMainPanel();
         setupRefreshTimer();
     }
+    
+    private void styleButton(JButton button) {
+        button.setBackground(new Color(138, 43, 226)); // Purple
+        button.setForeground(Color.WHITE); // White
+        button.setFocusPainted(false); // Remove focus border
+        button.setBorderPainted(false); // Remove border
+        button.setFont(MAIN_FONT); // Ensure consistent font
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR)); // Set a hand cursor
+    }
+
     
     private void initializeDatabase() {
         try {
@@ -138,26 +152,22 @@ public class DriverPanel extends JPanel {
     
     private JButton createNavButton(String text, String cardName) {
         JButton button = new JButton(text);
-        button.setFont(MAIN_FONT);
-        button.setBackground(SIDEBAR_COLOR);
-        button.setForeground(TEXT_COLOR);
-        button.setBorderPainted(false);
-        button.setFocusPainted(false);
-        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        
+        styleButton(button); // Apply the purple button style
+
         button.addActionListener(e -> cardLayout.show(mainContentPanel, cardName));
-        
+
         button.addMouseListener(new MouseAdapter() {
             public void mouseEntered(MouseEvent e) {
-                button.setBackground(ACCENT_COLOR);
+                button.setBackground(BUTTON_BACKGROUND_COLOR.darker());
             }
             public void mouseExited(MouseEvent e) {
-                button.setBackground(SIDEBAR_COLOR);
+                button.setBackground(BUTTON_BACKGROUND_COLOR);
             }
         });
-        
+
         return button;
     }
+
     
     private JPanel createCurrentDeliveryPanel() {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
@@ -174,6 +184,7 @@ public class DriverPanel extends JPanel {
         headerPanel.add(statusLabel, BorderLayout.WEST);
         
         JButton refreshButton = new JButton("Refresh Current Delivery");
+        styleButton(refreshButton);
         refreshButton.setFont(MAIN_FONT);
         refreshButton.addActionListener(e -> refreshCurrentDelivery());
         headerPanel.add(refreshButton, BorderLayout.EAST);
@@ -219,6 +230,7 @@ public class DriverPanel extends JPanel {
         otpField.setFont(MAIN_FONT);
         
         JButton verifyButton = new JButton("Verify OTP");
+        styleButton(verifyButton);
         verifyButton.setFont(MAIN_FONT);
         verifyButton.addActionListener(e -> verifyOTP(otpField.getText()));
         
@@ -231,39 +243,54 @@ public class DriverPanel extends JPanel {
     
  // Modified status update panel to handle location and OTP generation
     private JPanel createStatusUpdatePanel() {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS)); // Use BoxLayout for vertical arrangement
         panel.setBackground(BACKGROUND_COLOR);
 
+        // Top row panel for status and combo box
+        JPanel topRowPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        topRowPanel.setBackground(BACKGROUND_COLOR);
         JLabel statusLabel = new JLabel("Update Status:");
         statusLabel.setForeground(TEXT_COLOR);
         statusLabel.setFont(MAIN_FONT);
 
-        // ComboBox for update options
         String[] statuses = {"update_location", "mark_for_delivery"};
         JComboBox<String> statusCombo = new JComboBox<>(statuses);
         statusCombo.setFont(MAIN_FONT);
+        statusCombo.setMaximumRowCount(2); // Improve dropdown visibility
 
-        // Placeholder text field for location input
+        topRowPanel.add(statusLabel);
+        topRowPanel.add(statusCombo);
+        panel.add(topRowPanel);
+
+        // Location input panel
+        JPanel locationPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        locationPanel.setBackground(BACKGROUND_COLOR);
         PlaceholderTextField locationField = new PlaceholderTextField();
         locationField.setFont(MAIN_FONT);
         locationField.setPlaceholder("Enter current location");
         locationField.setPreferredSize(new Dimension(300, 30));
-        locationField.setVisible(false); // Initially hidden
+        locationField.setVisible(false);
 
-        // Update button for submitting the status
+        // Update button panel
+        JPanel updatePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        updatePanel.setBackground(BACKGROUND_COLOR);
         JButton updateButton = new JButton("Update");
+        styleButton(updateButton);
         updateButton.setFont(MAIN_FONT);
+
+        locationPanel.add(locationField);
+        updatePanel.add(updateButton);
+        panel.add(locationPanel);
+        panel.add(updatePanel);
 
         // Action listener for ComboBox to toggle visibility of locationField
         statusCombo.addActionListener(e -> {
             String selectedStatus = (String) statusCombo.getSelectedItem();
-            if ("update_location".equals(selectedStatus)) {
-                locationField.setVisible(true); // Show the text field
-                panel.revalidate();
-                panel.repaint();
-            } else {
-                locationField.setVisible(false); // Hide the text field
-            }
+            locationField.setVisible("update_location".equals(selectedStatus));
+            locationField.setText(""); // Clear previous text
+            panel.revalidate();
+            panel.repaint();
         });
 
         // Action listener for Update button
@@ -272,14 +299,13 @@ public class DriverPanel extends JPanel {
             if ("update_location".equals(selectedStatus)) {
                 String location = locationField.getText().trim();
 
-                // Validate input
                 if (location.isEmpty()) {
                     JOptionPane.showMessageDialog(this, "Please enter a valid location.", 
                         "Input Error", JOptionPane.WARNING_MESSAGE);
                     return;
                 }
 
-                // Update location in the database
+                // Update location in the database (existing code remains the same)
                 String sql = "UPDATE drivers SET current_location = ?, location_updated_at = CURRENT_TIMESTAMP WHERE driver_id = ?";
                 try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                     stmt.setString(1, location);
@@ -289,6 +315,7 @@ public class DriverPanel extends JPanel {
                     if (updated > 0) {
                         JOptionPane.showMessageDialog(this, "Location updated successfully.", 
                             "Success", JOptionPane.INFORMATION_MESSAGE);
+                        locationField.setText(""); // Clear the field after successful update
                     } else {
                         JOptionPane.showMessageDialog(this, "Failed to update location. Please try again.", 
                             "Update Error", JOptionPane.ERROR_MESSAGE);
@@ -301,57 +328,62 @@ public class DriverPanel extends JPanel {
             }
         });
 
-        // Add components to the panel
-        panel.add(statusLabel);
-        panel.add(statusCombo);
-        panel.add(locationField);
-        panel.add(updateButton);
-
         return panel;
     }
 
     
-    private JPanel createDeliveryHistoryPanel() {
+    private Component createDeliveryHistoryPanel() {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setBackground(BACKGROUND_COLOR);
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        
-        // Header
+
+        // Header Panel
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(BACKGROUND_COLOR);
         JLabel headerLabel = new JLabel("Delivery History");
         headerLabel.setFont(HEADER_FONT);
         headerLabel.setForeground(TEXT_COLOR);
-        panel.add(headerLabel, BorderLayout.NORTH);
-        
-        // Table
+        headerPanel.add(headerLabel, BorderLayout.WEST);
+
+        // Refresh button
+        JButton refreshButton = new JButton("Refresh History");
+        styleButton(refreshButton);
+        refreshButton.setFont(MAIN_FONT);
+        refreshButton.addActionListener(e -> refreshDeliveryHistory());
+        headerPanel.add(refreshButton, BorderLayout.EAST);
+
+        panel.add(headerPanel, BorderLayout.NORTH);
+
+        // Table Panel
+        JPanel tablePanel = new JPanel(new BorderLayout(10, 10));
+        tablePanel.setBackground(BACKGROUND_COLOR);
+
+        // Table Setup
         historyTableModel = new DefaultTableModel(HISTORY_COLUMNS, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
             }
         };
-        
+
         historyTable = new JTable(historyTableModel);
         historyTable.setBackground(ACCENT_COLOR);
         historyTable.setForeground(TEXT_COLOR);
-        historyTable.setGridColor(SIDEBAR_COLOR);
-        historyTable.getTableHeader().setBackground(SIDEBAR_COLOR);
-        historyTable.getTableHeader().setForeground(TEXT_COLOR);
+        historyTable.setGridColor(new Color(40, 40, 40)); // Subtle grid color
         historyTable.setFont(MAIN_FONT);
-        
+
+        // Table Header Styling
+        historyTable.getTableHeader().setBackground(ACCENT_COLOR);
+        historyTable.getTableHeader().setForeground(TEXT_COLOR);
+        historyTable.getTableHeader().setFont(MAIN_FONT);
+
+        // Scroll Pane
         JScrollPane scrollPane = new JScrollPane(historyTable);
         scrollPane.setBorder(BorderFactory.createLineBorder(ACCENT_COLOR));
-        panel.add(scrollPane, BorderLayout.CENTER);
-        
-        // Refresh button
-        JButton refreshButton = new JButton("Refresh History");
-        refreshButton.setFont(MAIN_FONT);
-        refreshButton.addActionListener(e -> refreshDeliveryHistory());
-        
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        buttonPanel.setBackground(BACKGROUND_COLOR);
-        buttonPanel.add(refreshButton);
-        panel.add(buttonPanel, BorderLayout.SOUTH);
-        
+        tablePanel.add(scrollPane, BorderLayout.CENTER);
+
+        panel.add(tablePanel, BorderLayout.CENTER);
+
         refreshDeliveryHistory();
         return panel;
     }
@@ -515,6 +547,8 @@ public class DriverPanel extends JPanel {
     }
     private JButton createLogoutButton() {
         JButton logoutButton = new JButton("Logout");
+        styleButton(logoutButton); // Apply the purple button style
+
         logoutButton.addActionListener(e -> {
             // Clean up resources
             if (refreshTimer != null) {
@@ -527,7 +561,7 @@ public class DriverPanel extends JPanel {
                     System.err.println("Error closing database connection: " + ex.getMessage());
                 }
             }
-            
+
             // Switch to login panel
             Container container = SwingUtilities.getAncestorOfClass(JFrame.class, this);
             if (container instanceof JFrame) {
@@ -540,29 +574,30 @@ public class DriverPanel extends JPanel {
         });
         return logoutButton;
     }
-    private void updateDeliveryStatus(String newStatus) {
-        String sql = """
-            UPDATE delivery_assignments
-            SET status = ?
-            WHERE driver_id = ? AND status != 'completed'
-        """;
-        
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, newStatus);
-            stmt.setInt(2, driverId);
-            
-            int updated = stmt.executeUpdate();
-            if (updated > 0) {
-                JOptionPane.showMessageDialog(this, "Status updated successfully");
-                refreshCurrentDelivery();
-                refreshDeliveryHistory();
-            } else {
-                JOptionPane.showMessageDialog(this, "No active delivery to update");
-            }
-        } catch (SQLException e) {
-            handleDatabaseError("Failed to update delivery status", e);
-        }
-    }
+
+//    private void updateDeliveryStatus(String newStatus) {
+//        String sql = """
+//            UPDATE delivery_assignments
+//            SET status = ?
+//            WHERE driver_id = ? AND status != 'completed'
+//        """;
+//        
+//        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+//            stmt.setString(1, newStatus);
+//            stmt.setInt(2, driverId);
+//            
+//            int updated = stmt.executeUpdate();
+//            if (updated > 0) {
+//                JOptionPane.showMessageDialog(this, "Status updated successfully");
+//                refreshCurrentDelivery();
+//                refreshDeliveryHistory();
+//            } else {
+//                JOptionPane.showMessageDialog(this, "No active delivery to update");
+//            }
+//        } catch (SQLException e) {
+//            handleDatabaseError("Failed to update delivery status", e);
+//        }
+//    }
     private String generateUniqueOTP() {
         SecureRandom random = new SecureRandom();
         String otp;
@@ -580,23 +615,23 @@ public class DriverPanel extends JPanel {
         return otp;
     }
  // New method to update driver's current location
-    private void updateDriverLocation(String location) {
-        String sql = "UPDATE drivers SET current_location = ?, location_updated_at = CURRENT_TIMESTAMP WHERE driver_id = ?";
-        
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, location);
-            stmt.setInt(2, driverId);
-            
-            int updated = stmt.executeUpdate();
-            if (updated > 0) {
-                JOptionPane.showMessageDialog(this, "Location updated successfully");
-            } else {
-                JOptionPane.showMessageDialog(this, "Failed to update location");
-            }
-        } catch (SQLException ex) {
-            handleDatabaseError("Location update failed", ex);
-        }
-    }
+//    private void updateDriverLocation(String location) {
+//        String sql = "UPDATE drivers SET current_location = ?, location_updated_at = CURRENT_TIMESTAMP WHERE driver_id = ?";
+//        
+//        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+//            stmt.setString(1, location);
+//            stmt.setInt(2, driverId);
+//            
+//            int updated = stmt.executeUpdate();
+//            if (updated > 0) {
+//                JOptionPane.showMessageDialog(this, "Location updated successfully");
+//            } else {
+//                JOptionPane.showMessageDialog(this, "Failed to update location");
+//            }
+//        } catch (SQLException ex) {
+//            handleDatabaseError("Location update failed", ex);
+//        }
+//    }
     
     // New method to mark order for delivery and generate OTP
     private void markOrderForDelivery() {
